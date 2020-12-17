@@ -6,16 +6,17 @@
 #include <SparkFun_Qwiic_Button.h>
 struct appConfig
 {
-  int lockPeriodMinutes;
-  int elapsedLockMinutes;
+  long lockPeriodMinutes;
+  long elapsedLockMinutes;
 };
 typedef struct appConfig AppConfig;
 
 AppConfig _myConfig;
 SerLCD lcd; // Initialize the library with default I2C address 0x72
-QwiicButton button;
+QwiicButton buttonGreen;
+QwiicButton buttonRed;
 uint8_t brightness = 100;
-                            
+                        
 void setup()
 {
   Serial.begin(9600);
@@ -30,11 +31,12 @@ void setup()
   lcd.clear(); //Clear the display - this moves the cursor to home position as well  
 
   //check if button will acknowledge over I2C
-  if (button.begin(0x5B) == false) {
+  if (buttonGreen.begin(0x5B) == false || buttonRed.begin() == false) {
     Serial.println("Button did not acknowledge! Freezing.");
   }  
   Serial.println("Button acknowledged.");  
-  button.LEDoff();  
+  buttonGreen.LEDoff(); 
+  buttonRed.LEDoff();
   
   EEPROM_readAnything(0, _myConfig);
   Serial.println(_myConfig.elapsedLockMinutes);
@@ -43,7 +45,7 @@ void setup()
     openDoor(true);
     displayCountDown(0);
   } else {
-    int min2unlock = _myConfig.lockPeriodMinutes - _myConfig.elapsedLockMinutes;
+    long min2unlock = _myConfig.lockPeriodMinutes - _myConfig.elapsedLockMinutes;
     lockDoorForDuration(min2unlock);
   }
 }
@@ -52,12 +54,26 @@ void loop()
 {
   //if button pushed then lock the door and wait for the lock duration to end
   //check if button is pressed, and tell us if it is!
-  if (button.isPressed() == true) {
-    button.LEDon(brightness);
-    while(button.isPressed() == true)
+  long lockDurations[] = {2*60, 4*60, 8*60, 24*60};
+  static long durationMinutes = 0;
+  static int i = 0;
+  
+  if (buttonGreen.isPressed() == true) {
+    buttonGreen.LEDon(brightness);
+    while(buttonGreen.isPressed() == true)
       delay(10);  //wait for user to stop pressing
-    button.LEDoff();
-    int min2unlock = calcMin2UnlockTime();
+    buttonGreen.LEDoff();
+    durationMinutes = lockDurations[i];
+    displayDurationChoice(durationMinutes);
+    i++; if (i>3) {i=0;}
+  }
+
+  if (buttonRed.isPressed() == true) {
+    buttonRed.LEDon(brightness);
+    while(buttonRed.isPressed() == true)
+      delay(10);  //wait for user to stop pressing
+    buttonRed.LEDoff();
+    long min2unlock = calcMin2UnlockTime(durationMinutes);
     printCurrentTime(min2unlock);
     lockDoorForDuration(min2unlock);          
   }
@@ -93,19 +109,19 @@ void openDoor(boolean openLock) {
   myservo.detach();
 }
 
-void printCurrentTime(int min2unlock) {
+void printCurrentTime(long min2unlock) {
   //Serial.begin(9600);
   Serial.print(min2unlock, DEC);
   Serial.println();
   //Serial.end();
 }
 
-void lockDoorForDuration(int numMinutes) {
+void lockDoorForDuration(long numMinutes) {
   Serial.println("lockDoorForDuration");
   _myConfig.lockPeriodMinutes = numMinutes;
   EEPROM_writeAnything(0, _myConfig);
   openDoor(false);   //lock door
-  for (byte i = 0; i < numMinutes; ++i) {
+  for (long i = 0; i < numMinutes; ++i) {
     Serial.println(i);
     _myConfig.elapsedLockMinutes = i;
     EEPROM_writeAnything(0, _myConfig);
@@ -118,16 +134,14 @@ void lockDoorForDuration(int numMinutes) {
   openDoor(true);    //open door
 }
 
-int calcMin2UnlockTime() {
-  _myConfig.lockPeriodMinutes = 120;
+long calcMin2UnlockTime(long numMinutes) {
+  _myConfig.lockPeriodMinutes = numMinutes;
   _myConfig.elapsedLockMinutes = 0;
   return _myConfig.lockPeriodMinutes - _myConfig.elapsedLockMinutes;
 }
 
-void displayCountDown(int minutesLeft) {
-  //serLCD lcd(3);
+void displayCountDown(long minutesLeft) {
   lcd.clear();
-  //lcd.setBrightness(10);
   lcd.print(minutesLeft);
   if (minutesLeft > 1) {
     lcd.print(" more minutes");
@@ -137,4 +151,11 @@ void displayCountDown(int minutesLeft) {
     lcd.clear();
     lcd.print("OPEN!");
   }
+}
+
+void displayDurationChoice(long minutes) {
+  lcd.clear();
+  lcd.print("Lock for ");
+  lcd.print(minutes);
+  lcd.print(" minutes");  
 }
