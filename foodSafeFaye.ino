@@ -6,8 +6,8 @@
 #include <SparkFun_Qwiic_Button.h>
 struct appConfig
 {
-  long lockPeriodMinutes;
-  long elapsedLockMinutes;
+  int lockPeriodMinutes;
+  int elapsedLockMinutes;
 };
 typedef struct appConfig AppConfig;
 
@@ -45,7 +45,7 @@ void setup()
     openDoor(true);
     displayCountDown(0);
   } else {
-    long min2unlock = _myConfig.lockPeriodMinutes - _myConfig.elapsedLockMinutes;
+    int min2unlock = _myConfig.lockPeriodMinutes - _myConfig.elapsedLockMinutes;
     lockDoorForDuration(min2unlock);
   }
 }
@@ -54,8 +54,8 @@ void loop()
 {
   //if button pushed then lock the door and wait for the lock duration to end
   //check if button is pressed, and tell us if it is!
-  long lockDurations[] = {2*60, 4*60, 8*60, 24*60};
-  static long durationMinutes = 0;
+  int lockDurations[] = {2*60, 4*60, 8*60, 24*60};
+  static int durationMinutes = 0;
   static int i = 0;
   
   if (buttonGreen.isPressed() == true) {
@@ -73,7 +73,7 @@ void loop()
     while(buttonRed.isPressed() == true)
       delay(10);  //wait for user to stop pressing
     buttonRed.LEDoff();
-    long min2unlock = calcMin2UnlockTime(durationMinutes);
+    int min2unlock = calcMin2UnlockTime(durationMinutes);
     printCurrentTime(min2unlock);
     lockDoorForDuration(min2unlock);          
   }
@@ -109,19 +109,19 @@ void openDoor(boolean openLock) {
   myservo.detach();
 }
 
-void printCurrentTime(long min2unlock) {
+void printCurrentTime(int min2unlock) {
   //Serial.begin(9600);
   Serial.print(min2unlock, DEC);
   Serial.println();
   //Serial.end();
 }
 
-void lockDoorForDuration(long numMinutes) {
+void lockDoorForDuration(int numMinutes) {
   Serial.println("lockDoorForDuration");
   _myConfig.lockPeriodMinutes = numMinutes;
   EEPROM_writeAnything(0, _myConfig);
   openDoor(false);   //lock door
-  for (long i = 0; i < numMinutes; ++i) {
+  for (int i = 0; i < numMinutes; ++i) {
     Serial.println(i);
     _myConfig.elapsedLockMinutes = i;
     EEPROM_writeAnything(0, _myConfig);
@@ -134,13 +134,13 @@ void lockDoorForDuration(long numMinutes) {
   openDoor(true);    //open door
 }
 
-long calcMin2UnlockTime(long numMinutes) {
+int calcMin2UnlockTime(int numMinutes) {
   _myConfig.lockPeriodMinutes = numMinutes;
   _myConfig.elapsedLockMinutes = 0;
   return _myConfig.lockPeriodMinutes - _myConfig.elapsedLockMinutes;
 }
 
-void displayCountDown(long minutesLeft) {
+void displayCountDown(int minutesLeft) {
   lcd.clear();
   lcd.print(minutesLeft);
   if (minutesLeft > 1) {
@@ -153,7 +153,7 @@ void displayCountDown(long minutesLeft) {
   }
 }
 
-void displayDurationChoice(long minutes) {
+void displayDurationChoice(int minutes) {
   lcd.clear();
   lcd.print("Lock for ");
   lcd.print(minutes);
