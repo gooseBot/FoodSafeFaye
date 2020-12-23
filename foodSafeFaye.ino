@@ -15,36 +15,32 @@ AppConfig _myConfig;
 SerLCD lcd; // Initialize the library with default I2C address 0x72
 QwiicButton buttonGreen;
 QwiicButton buttonRed;
-uint8_t brightness = 100;
-                        
+
+int lockDurations[] = {2*60, 4*60, 8*60, 24*60};
+int lockChoiceIndex = 0;
+int durationMinutes = lockDurations[0];
+
 void setup()
 {
-  Serial.begin(9600);
-  myDelay(5000);
-  Serial.println("setup");
+  //Serial.begin(9600);
+  //myDelay(5000);  //needed to allow time to open serial monitor
 
   Wire.begin();
-  Serial.println("wire begin");
-  lcd.begin(Wire);
-  Serial.println("lcd begin");
-  //lcd.setBacklight(132, 245, 66); //green
-  lcd.setBacklight(245, 66, 66); //red
-  lcd.setContrast(10); //Set contrast. Lower to 0 for higher contrast.
+  
+  lcd.begin(Wire); 
+  lcd.disableSplash(); //This will supress any splash from being displayed at power on
   lcd.clear(); //Clear the display - this moves the cursor to home position as well  
+  lcd.setContrast(2); //Set contrast. Lower to 0 for higher contrast.
 
   //check if button will acknowledge over I2C
   if (buttonGreen.begin(0x6E) == false) {
-    Serial.println("Button green not acknowledge!");
+    //Serial.println("Button green not acknowledge!");
   }  
   if (buttonRed.begin() == false) {
-    Serial.println("Button red not acknowledge!");
+    //Serial.println("Button red not acknowledge!");
   }  
-  buttonGreen.LEDoff(); 
-  buttonRed.LEDoff();
   
   EEPROM_readAnything(0, _myConfig);
-  Serial.println(_myConfig.elapsedLockMinutes);
-  Serial.println(_myConfig.lockPeriodMinutes);
   if (_myConfig.elapsedLockMinutes >= _myConfig.lockPeriodMinutes) {
     openDoor(true);
     displayCountDown(0);
@@ -58,27 +54,20 @@ void loop()
 {
   //if button pushed then lock the door and wait for the lock duration to end
   //check if button is pressed, and tell us if it is!
-  int lockDurations[] = {2*60, 4*60, 8*60, 24*60};
-  static int durationMinutes = 0;
-  static int i = 0;
+
   
   if (buttonGreen.isPressed() == true) {
-    buttonGreen.LEDon(brightness);
     while(buttonGreen.isPressed() == true)
       delay(10);  //wait for user to stop pressing
-    buttonGreen.LEDoff();
-    durationMinutes = lockDurations[i];
+    lockChoiceIndex++; if (lockChoiceIndex>3) {lockChoiceIndex=0;}
+    durationMinutes = lockDurations[lockChoiceIndex];
     displayDurationChoice(durationMinutes);
-    i++; if (i>3) {i=0;}
   }
 
   if (buttonRed.isPressed() == true) {
-    buttonRed.LEDon(brightness);
     while(buttonRed.isPressed() == true)
       delay(10);  //wait for user to stop pressing
-    buttonRed.LEDoff();
     int min2unlock = calcMin2UnlockTime(durationMinutes);
-    printCurrentTime(min2unlock);
     lockDoorForDuration(min2unlock);          
   }
 }
@@ -101,23 +90,22 @@ void openDoor(boolean openLock) {
   byte _doorServo = 7;
   byte _open = 0;
   byte _close = 100;
+  uint8_t brightness = 50;
   myservo.attach(_doorServo);
   if (openLock) {
-    Serial.println("open door");
     myservo.write(_open);
+    lcd.setFastBacklight(0,128,0); //green
+    buttonGreen.LEDon(brightness);
+    buttonRed.LEDoff();
   } else {
     Serial.println("close door");
     myservo.write(_close);
+    lcd.setFastBacklight(255,0,0); //red
+    buttonRed.LEDon(brightness);
+    buttonGreen.LEDoff();
   }
   myDelay(300);
   myservo.detach();
-}
-
-void printCurrentTime(int min2unlock) {
-  //Serial.begin(9600);
-  Serial.print(min2unlock, DEC);
-  Serial.println();
-  //Serial.end();
 }
 
 void lockDoorForDuration(int numMinutes) {
@@ -130,9 +118,8 @@ void lockDoorForDuration(int numMinutes) {
     _myConfig.elapsedLockMinutes = i;
     EEPROM_writeAnything(0, _myConfig);
     displayCountDown(numMinutes - i);
-    printCurrentTime(numMinutes - i);
-    //myDelay(60000);
-    myDelay(60);
+    //myDelay(1000*60);
+    myDelay(60000);
   }
   displayCountDown(0);
   openDoor(true);    //open door
@@ -145,21 +132,33 @@ int calcMin2UnlockTime(int numMinutes) {
 }
 
 void displayCountDown(int minutesLeft) {
+  int hours, minutes;
+  hours = minutesLeft / 60;
+  minutes = minutesLeft % 60;  
   lcd.clear();
-  lcd.print(minutesLeft);
-  if (minutesLeft > 1) {
+  lcd.print("LOCKED!");
+  lcd.setCursor(0, 1);
+  
+  if (minutesLeft > 1 & minutesLeft < 60) {
+    lcd.print(minutesLeft);
     lcd.print(" more minutes");
+  } else if (minutesLeft >= 60) {
+    lcd.print(hours);
+    lcd.print(":");
+    lcd.print(minutes);
+    lcd.print(" remaining");
   } else if (minutesLeft == 1) {
     lcd.print(" more minute!");
   } else {
-    lcd.clear();
-    lcd.print("OPEN!");
+    displayDurationChoice(durationMinutes);
   }
 }
 
 void displayDurationChoice(int minutes) {
-  lcd.clear();
-  lcd.print("Lock for ");
-  lcd.print(minutes);
-  lcd.print(" minutes");  
+    lcd.clear();
+    lcd.print("OPEN!");
+    lcd.setCursor(0, 1);
+    lcd.print("Lockout = ");
+    lcd.print(durationMinutes/60);
+    lcd.print(" hrs");
 }
