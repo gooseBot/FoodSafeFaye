@@ -20,21 +20,25 @@ uint8_t brightness = 100;
 void setup()
 {
   Serial.begin(9600);
-  myDelay(8000);
+  myDelay(5000);
   Serial.println("setup");
 
   Wire.begin();
-  lcd.begin(Wire); //Set up the LCD for I2C communication
+  Serial.println("wire begin");
+  lcd.begin(Wire);
+  Serial.println("lcd begin");
   //lcd.setBacklight(132, 245, 66); //green
   lcd.setBacklight(245, 66, 66); //red
   lcd.setContrast(10); //Set contrast. Lower to 0 for higher contrast.
   lcd.clear(); //Clear the display - this moves the cursor to home position as well  
 
   //check if button will acknowledge over I2C
-  if (buttonGreen.begin(0x5B) == false || buttonRed.begin() == false) {
-    Serial.println("Button did not acknowledge! Freezing.");
+  if (buttonGreen.begin(0x6E) == false) {
+    Serial.println("Button green not acknowledge!");
   }  
-  Serial.println("Button acknowledged.");  
+  if (buttonRed.begin() == false) {
+    Serial.println("Button red not acknowledge!");
+  }  
   buttonGreen.LEDoff(); 
   buttonRed.LEDoff();
   
@@ -97,7 +101,7 @@ void openDoor(boolean openLock) {
   byte _doorServo = 7;
   byte _open = 0;
   byte _close = 100;
-  myservo.attach(_doorServo, 544, 2400);
+  myservo.attach(_doorServo);
   if (openLock) {
     Serial.println("open door");
     myservo.write(_open);
@@ -128,7 +132,7 @@ void lockDoorForDuration(int numMinutes) {
     displayCountDown(numMinutes - i);
     printCurrentTime(numMinutes - i);
     //myDelay(60000);
-    myDelay(600);
+    myDelay(60);
   }
   displayCountDown(0);
   openDoor(true);    //open door
