@@ -19,11 +19,12 @@ QwiicButton buttonRed;
 int lockDurations[] = {2*60, 4*60, 8*60, 24*60};
 int lockChoiceIndex = 0;
 int durationMinutes = lockDurations[0];
+bool isLocked;
 
 void setup()
 {
-  //Serial.begin(9600);
-  //myDelay(5000);  //needed to allow time to open serial monitor
+//  Serial.begin(9600);
+//  myDelay(5000);  //needed to allow time to open serial monitor
 
   Wire.begin();
   
@@ -43,7 +44,7 @@ void setup()
   EEPROM_readAnything(0, _myConfig);
   if (_myConfig.elapsedLockMinutes >= _myConfig.lockPeriodMinutes) {
     openDoor(true);
-    displayCountDown(0);
+    displayDurationChoice();
   } else {
     int min2unlock = _myConfig.lockPeriodMinutes - _myConfig.elapsedLockMinutes;
     lockDoorForDuration(min2unlock);
@@ -59,9 +60,10 @@ void loop()
   if (buttonGreen.isPressed() == true) {
     while(buttonGreen.isPressed() == true)
       delay(10);  //wait for user to stop pressing
-    lockChoiceIndex++; if (lockChoiceIndex>3) {lockChoiceIndex=0;}
+    lockChoiceIndex++; 
+    if (lockChoiceIndex > (sizeof(lockDurations) / sizeof(lockDurations[0])-1)) {lockChoiceIndex=0;}    
     durationMinutes = lockDurations[lockChoiceIndex];
-    displayDurationChoice(durationMinutes);
+    displayDurationChoice();
   }
 
   if (buttonRed.isPressed() == true) {
@@ -93,12 +95,13 @@ void openDoor(boolean openLock) {
   uint8_t brightness = 50;
   myservo.attach(_doorServo);
   if (openLock) {
+    isLocked=false;
     myservo.write(_open);
     lcd.setFastBacklight(0,128,0); //green
     buttonGreen.LEDon(brightness);
     buttonRed.LEDoff();
   } else {
-    Serial.println("close door");
+    isLocked=true;
     myservo.write(_close);
     lcd.setFastBacklight(255,0,0); //red
     buttonRed.LEDon(brightness);
@@ -109,20 +112,20 @@ void openDoor(boolean openLock) {
 }
 
 void lockDoorForDuration(int numMinutes) {
-  Serial.println("lockDoorForDuration");
   _myConfig.lockPeriodMinutes = numMinutes;
   EEPROM_writeAnything(0, _myConfig);
   openDoor(false);   //lock door
   for (int i = 0; i < numMinutes; ++i) {
-    Serial.println(i);
     _myConfig.elapsedLockMinutes = i;
     EEPROM_writeAnything(0, _myConfig);
     displayCountDown(numMinutes - i);
-    //myDelay(1000*60);
     myDelay(60000);
-  }
-  displayCountDown(0);
+  }  
+  //make sure they are equal so on restart its not locked for a minute.
+  _myConfig.elapsedLockMinutes = numMinutes;
+  EEPROM_writeAnything(0, _myConfig);
   openDoor(true);    //open door
+  displayDurationChoice();
 }
 
 int calcMin2UnlockTime(int numMinutes) {
@@ -135,10 +138,9 @@ void displayCountDown(int minutesLeft) {
   int hours, minutes;
   hours = minutesLeft / 60;
   minutes = minutesLeft % 60;  
-  lcd.clear();
-  lcd.print("LOCKED!");
-  lcd.setCursor(0, 1);
-  
+
+  displayLockStatus();
+    
   if (minutesLeft > 1 & minutesLeft < 60) {
     lcd.print(minutesLeft);
     lcd.print(" more minutes");
@@ -147,18 +149,26 @@ void displayCountDown(int minutesLeft) {
     lcd.print(":");
     lcd.print(minutes);
     lcd.print(" remaining");
-  } else if (minutesLeft == 1) {
+  } else if (minutesLeft <= 1) {
+    lcd.print(minutesLeft);
     lcd.print(" more minute!");
-  } else {
-    displayDurationChoice(durationMinutes);
-  }
+  }   
 }
 
-void displayDurationChoice(int minutes) {
-    lcd.clear();
+void displayDurationChoice() {
+  displayLockStatus();
+  
+  lcd.print("Lockout = ");
+  lcd.print(durationMinutes/60);
+  lcd.print(" hrs");
+}
+
+void displayLockStatus() {
+  lcd.clear();
+  if (isLocked) {    
+    lcd.print("LOCKED!");
+  } else {
     lcd.print("OPEN!");
-    lcd.setCursor(0, 1);
-    lcd.print("Lockout = ");
-    lcd.print(durationMinutes/60);
-    lcd.print(" hrs");
+  }
+  lcd.setCursor(0, 1);
 }
